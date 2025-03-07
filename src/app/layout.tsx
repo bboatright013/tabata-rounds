@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import Script from "next/script"
 import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { GoogleTagManager } from '@next/third-parties/google'
@@ -38,6 +39,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <meta name="google-adsense-account" content="ca-pub-5636286009107877" />
+      </head>
       <GoogleTagManager gtmId={process.env.GOOGLE_TAG_MANAGER || ''} />
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
