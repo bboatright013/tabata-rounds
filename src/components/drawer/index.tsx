@@ -1,7 +1,8 @@
 'use client'
-import { Fragment } from "react"
+import { cloneElement, Fragment } from "react"
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
 import CloseIcon from '@mui/icons-material/Close'
+import React from "react"
 
 type DrawerProps = {
   isOpen: boolean
@@ -38,8 +39,11 @@ export default function Drawer({ isOpen, onClose, children }: DrawerProps) {
               leaveFrom="translate-x-0"
               leaveTo="translate-x-full"
             >
-              <DialogPanel className="w-24 bg-gray-800 shadow-lg flex flex-col items-center justify-center relative">
-                {children}
+              <DialogPanel className="w-full bg-gray-800 shadow-lg flex flex-col items-center justify-center relative">
+              {React.isValidElement(children)
+                ? cloneElement(children as React.ReactElement<any>, { onCancel: close })
+                : children}
+
                 <button onClick={onClose} className="absolute top-2 text-white">
                   <CloseIcon fontSize="large" />
                 </button>

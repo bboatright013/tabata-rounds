@@ -1,8 +1,9 @@
 'use client'
 import React, { useState } from 'react'
 import { DragDropContext, DropResult } from '@hello-pangea/dnd'
-import { KanbanColumn } from '@/components'
-import { BoardData, Column } from '../types'
+import { Drawer, KanbanColumn } from '@/components'
+import { BoardData, Column, Task } from '../types'
+import TaskForm from '../taskForm'
 
 const initialData: BoardData = {
   tasks: {
@@ -31,7 +32,7 @@ const initialData: BoardData = {
 
 const KanbanBoard: React.FC = () => {
   const [data, setData] = useState<BoardData>(initialData)
-
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const handleDragEnd = (result: DropResult) => {
     const { destination, source, draggableId } = result
     if (!destination) return
@@ -92,14 +93,31 @@ const KanbanBoard: React.FC = () => {
     })
   }
 
+  const handleSave = (title: string, details: string) => {
+    const id = `task-${Date.now()}`
+    const newTask: Task = { id, title, details, timestamps: [] }
+    setData(d => ({
+      ...d,
+      tasks: { ...d.tasks, [id]: newTask },
+      columns: {
+        ...d.columns,
+        backlog: {
+          ...d.columns.backlog,
+          taskIds: [id, ...d.columns.backlog.taskIds],
+        },
+      },
+    }))
+    setIsDrawerOpen(false)  // close after saving
+  }
+
   return (
     <div className="p-4">
       <header className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Kanban Dashboard</h1>
-        {/* Create Task button can open a modal or inline form */}
-        <button 
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600" 
-          onClick={() => alert('Open create task modal')}
+        {/* This button just flips your state */}
+        <button
+          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          onClick={() => setIsDrawerOpen(true)}
         >
           Create Task
         </button>
@@ -115,6 +133,18 @@ const KanbanBoard: React.FC = () => {
           })}
         </div>
       </DragDropContext>
+            {/* Controlled Drawer */}
+      <Drawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        
+      >
+        {/* TaskForm is just the child */}
+        <TaskForm
+          onSave={handleSave}
+          onCancel={() => setIsDrawerOpen(false)}
+        />
+      </Drawer>
     </div>
   );
 };

@@ -11,7 +11,7 @@ interface KanbanColumnProps {
 
 const KanbanColumn: React.FC<KanbanColumnProps> = ({ column, tasks }) => {
   return (
-    <div className="w-1/3 bg-gray-100 rounded shadow p-2">
+    <div className="w-1/3 bg-gray-100 rounded shadow p-2 h-full">
       <h2 className="text-lg font-semibold mb-2">{column.title}</h2>
       <Droppable droppableId={column.id}>
         {(provided, snapshot) => (
