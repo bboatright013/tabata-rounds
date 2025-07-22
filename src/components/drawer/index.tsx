@@ -41,7 +41,7 @@ export default function Drawer({ isOpen, onClose, children }: DrawerProps) {
             >
               <DialogPanel className="w-full bg-gray-800 shadow-lg flex flex-col items-center justify-center relative">
               {React.isValidElement(children)
-                ? cloneElement(children as React.ReactElement, { onCancel: close })
+                ? cloneElement(children as React.ReactElement)
                 : children}
 
                 <button onClick={onClose} className="absolute top-2 text-white">
