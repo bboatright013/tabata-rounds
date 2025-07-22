@@ -76,7 +76,7 @@ export default function CookiePolicyPage() {
           <p className="text-lg">
             Google Ads cookies help us serve more relevant advertisements and measure the effectiveness of our ad campaigns. These cookies may be used to build a profile of your interests and deliver targeted ads across the web. For more details on Google Ads practices, please see the{" "}
             <a href="https://policies.google.com/terms" target="_blank" className="text-blue-600 hover:underline">
-              Google Ads Privacy &amp Terms
+              Google Ads Privacy &amp; Terms
             </a>.
           </p>
         </div>
