@@ -33,7 +33,7 @@ const CookieConsentBanner: React.FC = () => {
     showBanner ? (
       <div className="fixed bottom-0 left-0 right-0 bg-gray-800 text-white px-4 py-3 flex flex-col md:flex-row items-center justify-between z-50">
         <span className="text-sm">
-          We use cookies to enhance your experience and analyze site traffic. By clicking “Accept,” you agree to the use of non-essential cookies. For more details, please see our{' '}
+          We use cookies to enhance your experience and analyze site traffic. By clicking &ldquo;Accept,&rdquo; you agree to the use of non-essential cookies. For more details, please see our{' '}
           <a href="/cookie-policy" target="_blank" className="text-blue-300 hover:underline">
             Cookie Policy
           </a>.

@@ -1,6 +1,6 @@
 'use client'
 import React from 'react'
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
+import { Draggable } from '@hello-pangea/dnd'
 import { Task } from '../types'
 
 interface TaskCardProps {

@@ -1,6 +1,6 @@
 'use client'
 import React, { useState } from 'react'
-import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
+import { DragDropContext, DropResult } from '@hello-pangea/dnd'
 import { KanbanColumn } from '@/components'
 import { BoardData, Column } from '../types'
 

@@ -15,7 +15,7 @@ export default function CookiePolicyPage() {
       <section className="mb-6">
         <h2 className="text-2xl font-semibold mb-2">2. What Are Cookies?</h2>
         <p className="text-lg">
-          Cookies are small text files that are stored on your device (computer, tablet, or mobile) when you visit a website. They are widely used to make websites work more efficiently, as well as to provide information to the site owners. Cookies may be "persistent" (stored for a set period) or "session" cookies (deleted when you close your browser).
+          Cookies are small text files that are stored on your device (computer, tablet, or mobile) when you visit a website. They are widely used to make websites work more efficiently, as well as to provide information to the site owners. Cookies may be &ldquo;persistent&rdquo; (stored for a set period) or &ldquo;session&rdquo; cookies (deleted when you close your browser).
         </p>
       </section>
 

@@ -1,6 +1,6 @@
 'use client'
 import React from 'react'
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { Droppable } from '@hello-pangea/dnd';
 import { TaskCard } from '@/components'
 import { Column, Task } from '../types'
 
