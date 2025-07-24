@@ -29,7 +29,7 @@ export default function Drawer({ isOpen, onClose, children }: DrawerProps) {
               onClick={onClose}
             />
           </TransitionChild>
-          <div className="fixed inset-y-0 right-0 flex max-w-full">
+          <div className="fixed inset-y-0 right-0 flex w-full max-w-full">
             <TransitionChild
               as={Fragment}
               enter="transition ease-in-out duration-300"
@@ -44,7 +44,7 @@ export default function Drawer({ isOpen, onClose, children }: DrawerProps) {
                 ? cloneElement(children as React.ReactElement)
                 : children}
 
-                <button onClick={onClose} className="absolute top-2 text-white">
+                <button onClick={onClose} className="absolute top-2 right-2 text-white">
                   <CloseIcon fontSize="large" />
                 </button>
               </DialogPanel>

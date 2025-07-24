@@ -1,13 +1,14 @@
 'use client'
 import React, { useState } from 'react'
 import { DragDropContext, DropResult } from '@hello-pangea/dnd'
+import { nanoid } from 'nanoid'
 import { Drawer, KanbanColumn } from '@/components'
 import { BoardData, Column, Task } from '../types'
 import TaskForm from '../taskForm'
 
 const initialData: BoardData = {
   tasks: {
-    'task-1': { id: 'task-1', title: 'Sample Task', details: 'Some details here', timestamps: [] },
+    'task-1': { id: 'task-1', title: 'Sample Task', details: 'Some details here', type: 'feature', status: 'backlog', priority: 'medium', tags: [], dueDate: undefined },
     // More tasks can be added here…
   },
   columns: {
@@ -93,12 +94,13 @@ const KanbanBoard: React.FC = () => {
     })
   }
 
-  const handleSave = (title: string, details: string) => {
-    const id = `task-${Date.now()}`
-    const newTask: Task = { id, title, details, timestamps: [] }
+  const handleSave = (taskData: Omit<Task, 'id'>) => {
+    const id = `task-${nanoid()}`
+    const newTask: Task = { id, ...taskData }
+
     setData(d => ({
       ...d,
-      tasks: { ...d.tasks, [id]: newTask },
+      tasks:   { ...d.tasks,   [id]: newTask },
       columns: {
         ...d.columns,
         backlog: {
@@ -107,7 +109,7 @@ const KanbanBoard: React.FC = () => {
         },
       },
     }))
-    setIsDrawerOpen(false)  // close after saving
+    setIsDrawerOpen(false)
   }
 
   return (
