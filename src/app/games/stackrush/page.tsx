@@ -2,67 +2,88 @@
 
 import {useEffect, useRef, useState} from 'react'
 
+// Helper: always get a non-null 2D context
+function must2D(el: HTMLCanvasElement): CanvasRenderingContext2D {
+  const ctx = el.getContext('2d')
+  if (!ctx) throw new Error('2D canvas not supported')
+  return ctx
+}
+
 export default function StackRushPage(){
   const canvasRef = useRef<HTMLCanvasElement|null>(null)
   const [gameState, setGameState] = useState<'menu'|'playing'|'over'>('menu')
   const [score, setScore] = useState(0)
-  const [best, setBest] = useState<number>(()=>{
-    if (typeof window === 'undefined') return 0
-    const v = Number(localStorage.getItem('stackrush_best')||0)
-    return Number.isFinite(v) ? v : 0
-  })
+  const [best, setBest] = useState<number>(0)
   const [phaseLabel, setPhaseLabel] = useState('—')
   const [soundOn, setSoundOn] = useState(false)
+  const audioRef = useRef<{ac: AudioContext | null; enabled: boolean}>({ ac: null, enabled: false })
+  const scoreRef = useRef(0)
 
-  // simple ad placeholders (replace with your ad provider widgets)
-  // You can also use @next/third-parties/google <GoogleTagManager/> or <AdSense/> here
+  // Load 'best' after mount to avoid SSR/CSR mismatch
+  useEffect(() => {
+    try {
+      const v = Number(localStorage.getItem('stackrush_best') || 0)
+      if (Number.isFinite(v)) setBest(v)
+    } catch {}
+  }, [])
 
-  useEffect(()=>{
-    const canvas = canvasRef.current
-    if(!canvas) return
-    const ctx = canvas.getContext('2d')!
+  // Keep a live reference to score for gameOver (avoid stale closure)
+  useEffect(() => {
+    scoreRef.current = score
+    if (score > best) setBest(score) // show Best immediately when surpassed
+  }, [score, best])
 
-    let DPR = Math.max(1, Math.min(2, (typeof window!=='undefined' && window.devicePixelRatio) || 1))
+  // Persist best whenever it changes
+  useEffect(() => {
+    try { localStorage.setItem('stackrush_best', String(best)) } catch {}
+  }, [best])
+
+  useEffect(() => {
+    const c = canvasRef.current
+    if (!c) return
+    const ctx = must2D(c)
+
+    let DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1))
     let W = 0, H = 0
+
     function resize(){
-    const canvas = canvasRef.current
-    if(!canvas) return
-          const rect = canvas.parentElement?.getBoundingClientRect() || {width:800,height:600}
-      W = Math.floor(rect.width)
-      H = Math.floor(rect.height)
-      DPR = Math.max(1, Math.min(2, (typeof window!=='undefined' && window.devicePixelRatio) || 1))
-      canvas.width = Math.floor(W * DPR)
-      canvas.height = Math.floor(H * DPR)
+      const el = canvasRef.current
+      if (!el) return
+      const rect = el.parentElement?.getBoundingClientRect()
+      W = Math.floor(rect?.width ?? 800)
+      H = Math.floor(rect?.height ?? 600)
+      DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1))
+      el.width  = Math.floor(W * DPR)
+      el.height = Math.floor(H * DPR)
       ctx.setTransform(DPR,0,0,DPR,0,0)
     }
+
     resize()
     const ro = new ResizeObserver(resize)
-    ro.observe(canvas.parentElement as Element)
+    if (c.parentElement) ro.observe(c.parentElement)
 
-    // audio
-    let audioEnabled = soundOn
-    let ac: AudioContext | null = null
-    function ensureAudio(){ if(!audioEnabled) return; if(!ac){ ac = new (window.AudioContext|| (window as any).webkitAudioContext)() } }
+    // ---- Audio ----
+    function ensureAudio(){ if(!audioRef.current.enabled) return; if(!audioRef.current.ac){ audioRef.current.ac = new (window.AudioContext || (window as any).webkitAudioContext)() } }
     function beep(freq=880, dur=0.06, type: OscillatorType='sine', gain=0.05){
-      if(!audioEnabled) return
+      if(!audioRef.current.enabled) return
       ensureAudio()
+      const ac = audioRef.current.ac
       if(!ac) return
       const o = ac.createOscillator()
       const g = ac.createGain()
-      o.type = type; o.frequency.value = freq
-      g.gain.value = gain
+      o.type = type; o.frequency.setValueAtTime(freq, ac.currentTime)
+      g.gain.setValueAtTime(gain, ac.currentTime)
       o.connect(g); g.connect(ac.destination)
       o.start()
       o.stop(ac.currentTime + dur)
     }
+    function touchAudio(){ try{ ensureAudio(); const ac = audioRef.current.ac; ac && (ac as any).resume?.() }catch{} }
+    function haptic(ms=10){ try { (navigator as any).vibrate?.(ms) } catch {} }
 
-    // game model
-    const WORK = 0, REST = 1
+    // ---- Game model ----
+    const WORK = 0, REST = 1 as const
     const PHASES = [ {kind:WORK, label:'Work 20s', secs:20}, {kind:REST, label:'Rest 10s', secs:10} ] as const
-
-    let phaseIndex = 0
-    let phaseElapsed = 0
-    let sinceStart = 0
+    let phaseIndex = 0, phaseElapsed = 0
 
     type Slab = {x:number,y:number,w:number,dir?:1|-1}
     let baseWidth = 0, slabHeight = 0, speedBase = 0, speedWorkBoost = 1.35, speed = 0
@@ -75,10 +96,8 @@ export default function StackRushPage(){
     function currentPhase(){ return PHASES[phaseIndex] }
     function nextPhase(){ phaseIndex = (phaseIndex+1)%PHASES.length; phaseElapsed = 0; setPhaseLabel(currentPhase().label) }
 
-    function updateChips(){ setPhaseLabel(currentPhase().label) }
-
     function reset(){
-      phaseIndex=0; phaseElapsed=0; sinceStart=0; combo=0; cameraY=0; dir=1
+      phaseIndex=0; phaseElapsed=0; combo=0; cameraY=0; dir=1
       setScore(0)
       baseWidth = Math.min(W*0.7, 360)
       slabHeight = Math.max(16, Math.floor(H*0.03))
@@ -88,7 +107,7 @@ export default function StackRushPage(){
       const baseY = H - slabHeight*2
       tower = [{x:startX,y:baseY,w:baseWidth}]
       mover = makeMover()
-      updateChips()
+      setPhaseLabel(currentPhase().label)
     }
 
     function makeMover(): Slab{
@@ -99,16 +118,26 @@ export default function StackRushPage(){
       return {x:startX,y,w,dir}
     }
 
+    function gameOver(){
+      setGameState('over')
+      const finalScore = scoreRef.current
+      setBest(prev => {
+        const b = Math.max(prev, finalScore)
+        try { localStorage.setItem('stackrush_best', String(b)) } catch {}
+        return b
+      })
+    }
+
     function drop(){
       if(gameState!=='playing' || !mover) return
       const last = tower[tower.length-1]
       const overlapLeft = Math.max(last.x, mover.x)
       const overlapRight = Math.min(last.x + last.w, mover.x + mover.w)
       const overlap = overlapRight - overlapLeft
-      if(overlap <= 1){ beep(160,.12,'sawtooth',.08); gameOver(); return }
+      if(overlap <= 1){ beep(160,.12,'sawtooth',.08); haptic(50); gameOver(); return }
       const offset = (mover.x - last.x)
       const perfect = Math.abs(offset) < 2
-      if(perfect) { combo++; beep(1200,.05,'triangle',.05) } else { combo=0; beep(760,.03,'sine',.04) }
+      if(perfect) { combo++; beep(1200,.05,'triangle',.05); haptic(20) } else { combo=0; beep(760,.03,'sine',.04) }
       const newW = overlap
       const newX = overlapLeft
       tower.push({x:newX,y:mover.y,w:newW})
@@ -117,31 +146,25 @@ export default function StackRushPage(){
       setScore(s=> s + Math.floor(basePts*mult))
       dir *= -1
       mover = makeMover()
-      const minY = tower[tower.length-1].y - H*0.45
-      cameraY = Math.min(cameraY, minY)
+      // camera follows in update()
       if(tower.length % 6 === 0){ speedBase += 10 }
-    }
-
-    function start(){ reset(); setGameState('playing'); beep(900,.08,'sine',.05) }
-    function gameOver(){
-      setGameState('over')
-      setBest(prev=>{
-        const b = Math.max(prev, (typeof score==='number'? score : 0))
-        if(typeof window!=='undefined') localStorage.setItem('stackrush_best', String(b))
-        return b
-      })
-      // show interstitial ad here (replace placeholder div)
     }
 
     function update(dt:number){
       if(gameState!=='playing' || !mover) return
-      sinceStart += dt; phaseElapsed += dt
+      phaseElapsed += dt
       if(phaseElapsed >= currentPhase().secs){ nextPhase() }
       const phaseBoost = currentPhase().kind===WORK ? speedWorkBoost : 1
       speed = speedBase * phaseBoost
       mover.x += (mover.dir as number) * speed * dt
       if((mover.dir as number)>0 && mover.x + mover.w >= W) mover.dir = -1
       if((mover.dir as number)<0 && mover.x <= 0) mover.dir = 1
+
+      // Smooth camera: keep the active layer near mid-screen (a bit below center)
+      const activeY = mover ? mover.y : (tower.length ? tower[tower.length-1].y : H - slabHeight*2)
+      const desiredY = H * 0.55
+      const targetCam = Math.max(0, desiredY - activeY)
+      cameraY += (targetCam - cameraY) * Math.min(1, 8 * dt)
     }
 
     function roundRect(c:CanvasRenderingContext2D, x:number,y:number,w:number,h:number,r:number){
@@ -161,8 +184,7 @@ export default function StackRushPage(){
       const g1 = work ? '#0b162e' : '#081a12'
       const g2 = work ? '#14386b' : '#0f3a24'
       const grd = ctx.createLinearGradient(0,0,0,H)
-      grd.addColorStop(0,g1)
-      grd.addColorStop(1,g2)
+      grd.addColorStop(0,g1); grd.addColorStop(1,g2)
       ctx.fillStyle = grd
       ctx.fillRect(0,0,W,H)
 
@@ -205,69 +227,77 @@ export default function StackRushPage(){
       }
     }
 
-    // loop
-    let last = 0, raf = 0
+    // ---- Loop ----
+    let last = 0, rafId = 0
     function frame(ts:number){
       if(!last) last = ts
       const dt = Math.min(.033, (ts - last)/1000)
       last = ts
       if(gameState==='playing') update(dt)
       draw()
-      raf = requestAnimationFrame(frame)
+      rafId = requestAnimationFrame(frame)
     }
-    raf = requestAnimationFrame(frame)
+    rafId = requestAnimationFrame(frame)
 
-    // input
+    // ---- Input ----
     function onPress(){
-      if(gameState==='menu') { start(); return }
-      if(gameState==='playing'){ drop(); return }
-      if(gameState==='over'){ start(); return }
+      touchAudio(); haptic(10); beep(520,.02,'square',.02)
+      if (gameState !== 'playing') { setGameState('playing'); return }
+      drop()
     }
     function keyHandler(e:KeyboardEvent){ if(e.code==='Space' || e.code==='Enter'){ e.preventDefault(); onPress() } }
-    canvas.addEventListener('pointerdown', onPress)
+    c.addEventListener('pointerdown', onPress)
     window.addEventListener('keydown', keyHandler)
 
-    // react to soundOn toggle
-    const unsub = () => {}
+    // Initialize playfield when in 'playing'
+    if (gameState === 'playing') {
+      reset()
+      beep(900,.08,'sine',.05)
+    }
 
     return () => {
-      cancelAnimationFrame(raf)
+      cancelAnimationFrame(rafId)
       ro.disconnect()
-      canvas.removeEventListener('pointerdown', onPress)
+      c.removeEventListener('pointerdown', onPress)
       window.removeEventListener('keydown', keyHandler)
-      unsub()
-      if(ac) ac.close().catch(()=>{})
     }
-  // intentionally include gameState & soundOn so we can restart cleanly
-  }, [gameState, soundOn])
+  }, [gameState])
+
+  const toggleSound = () => {
+    setSoundOn(s => {
+      const next = !s
+      audioRef.current.enabled = next
+      try { (audioRef.current.ac as any)?.resume?.() } catch {}
+      return next
+    })
+  }
 
   const share = async () => {
     const msg = `I scored ${score} in StackRush 20/10! Can you beat me?`
-    try{
+    try {
       if(navigator.share){ await navigator.share({title:'StackRush 20/10', text:msg, url:location.href}) }
       else { await navigator.clipboard.writeText(`${msg} ${location.href}`) }
-    }catch{}
+    } catch {}
   }
 
   return (
-    <div style={{display:'flex',flexDirection:'column',height:'100dvh',background:'#0b1020',color:'#e7f0ff'}}>
-      {/* Top banner ad slot */}
-      <div style={{height:60,minHeight:60,background:'#0f172a',color:'#9fb3c8',display:'flex',alignItems:'center',justifyContent:'center',borderBottom:'1px solid #1e293b'}}>Ad slot — 728×60 / responsive banner</div>
-
-      <div style={{position:'relative',flex:1}}>
+    <div style={{position:'relative',flex:1,blockSize:'100%',background:'#0b1020',color:'#e7f0ff'}}>
+      <div style={{position:'relative',inset:0,blockSize:'100%'}}>
         <canvas ref={canvasRef} style={{width:'100%',height:'100%',display:'block',imageRendering:'-webkit-optimize-contrast'}} />
 
         {/* HUD */}
         <div style={{position:'absolute',inset:0,pointerEvents:'none',display:'flex',flexDirection:'column'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'8px 12px'}}>
-            <div className="chip" style={chipStyle}>Phase: <strong style={{color:'#fff',marginLeft:6}}>{phaseLabel}</strong></div>
-            <div className="chip" style={chipStyle}>Score: <strong style={{color:'#fff',marginLeft:6}}>{score}</strong></div>
-            <div className="chip" style={chipStyle}>Best: <strong style={{color:'#fff',marginLeft:6}}>{best}</strong></div>
-            <button onClick={()=> setSoundOn(s=>!s)} style={{...chipStyle,cursor:'pointer',pointerEvents:'auto'}} aria-label="Toggle sound">{soundOn?'🔊 Sound':'🔇 Sound'}</button>
+            <div className="chip" style={chipStyle}>Phase: <strong suppressHydrationWarning style={{color:'#fff',marginLeft:6}}>{phaseLabel}</strong></div>
+            <div className="chip" style={chipStyle}>Score: <strong suppressHydrationWarning style={{color:'#fff',marginLeft:6}}>{score}</strong></div>
+            <div className="chip" style={chipStyle}>Best: <strong suppressHydrationWarning style={{color:'#fff',marginLeft:6}}>{best}</strong></div>
+            <button onClick={toggleSound} style={{...chipStyle,cursor:'pointer',pointerEvents:'auto'}} aria-label="Toggle sound">{soundOn?'🔊 Sound':'🔇 Sound'}</button>
           </div>
-          <div style={{marginTop:'auto',display:'flex',alignItems:'flex-end',justifyContent:'center',padding:16}}>
-            <button onClick={()=> setGameState(gs=> gs==='playing' ? gs : 'playing')} style={btnBigStyle}>▶️ Play</button>
-          </div>
+          {gameState !== 'playing' && (
+            <div style={{marginTop:'auto',display:'flex',alignItems:'flex-end',justifyContent:'center',padding:16}}>
+              <button onClick={()=> setGameState('playing')} style={btnBigStyle}>▶️ Play</button>
+            </div>
+          )}
         </div>
 
         {/* Menu modal */}
