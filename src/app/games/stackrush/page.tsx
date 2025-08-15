@@ -2,6 +2,29 @@
 
 import {useEffect, useRef, useState} from 'react'
 
+/** Allow prefixed webkitAudioContext without using `any` */
+declare global {
+  interface Window {
+    webkitAudioContext?: typeof AudioContext
+  }
+}
+
+type RAFHandle = number
+type TimeoutHandle = ReturnType<typeof setTimeout>
+type IntervalHandle = ReturnType<typeof setInterval>
+
+interface StackBlock {
+  x: number;
+  y: number;
+  width: number;
+  color: string;
+}
+
+interface SpeedBoost {
+  amount: number;      // e.g. multiplier or px/sec
+  durationMs: number;  // how long it lasts
+}
+
 // Helper: always get a non-null 2D context
 function must2D(el: HTMLCanvasElement): CanvasRenderingContext2D {
   const ctx = el.getContext('2d')
@@ -63,7 +86,13 @@ export default function StackRushPage(){
     if (c.parentElement) ro.observe(c.parentElement)
 
     // ---- Audio ----
-    function ensureAudio(){ if(!audioRef.current.enabled) return; if(!audioRef.current.ac){ audioRef.current.ac = new (window.AudioContext || (window as any).webkitAudioContext)() } }
+    function ensureAudio(){
+      if (!audioRef.current.enabled) return
+      if (!audioRef.current.ac) {
+        const AC = window.AudioContext || window.webkitAudioContext
+        if (AC) audioRef.current.ac = new AC()
+      }
+    }
     function beep(freq=880, dur=0.06, type: OscillatorType='sine', gain=0.05){
       if(!audioRef.current.enabled) return
       ensureAudio()
@@ -77,8 +106,16 @@ export default function StackRushPage(){
       o.start()
       o.stop(ac.currentTime + dur)
     }
-    function touchAudio(){ try{ ensureAudio(); const ac = audioRef.current.ac; ac && (ac as any).resume?.() }catch{} }
-    function haptic(ms=10){ try { (navigator as any).vibrate?.(ms) } catch {} }
+    function touchAudio(){
+      try {
+        ensureAudio()
+        const ac = audioRef.current.ac
+        ac?.resume?.()
+      } catch {}
+    }
+    function haptic(ms=10){
+      try { navigator.vibrate?.(ms) } catch {}
+    }
 
     // ---- Game model ----
     const WORK = 0, REST = 1 as const
@@ -86,7 +123,8 @@ export default function StackRushPage(){
     let phaseIndex = 0, phaseElapsed = 0
 
     type Slab = {x:number,y:number,w:number,dir?:1|-1}
-    let baseWidth = 0, slabHeight = 0, speedBase = 0, speedWorkBoost = 1.35, speed = 0
+    let baseWidth = 0, slabHeight = 0, speedBase = 0, speed = 0
+    const speedWorkBoost = 1.35
     let tower: Slab[] = []
     let mover: Slab | null = null
     let dir: 1|-1 = 1
@@ -156,9 +194,9 @@ export default function StackRushPage(){
       if(phaseElapsed >= currentPhase().secs){ nextPhase() }
       const phaseBoost = currentPhase().kind===WORK ? speedWorkBoost : 1
       speed = speedBase * phaseBoost
-      mover.x += (mover.dir as number) * speed * dt
-      if((mover.dir as number)>0 && mover.x + mover.w >= W) mover.dir = -1
-      if((mover.dir as number)<0 && mover.x <= 0) mover.dir = 1
+      mover.x += (mover.dir ?? 1) * speed * dt
+      if((mover.dir ?? 1)>0 && mover.x + mover.w >= W) mover.dir = -1
+      if((mover.dir ?? -1)<0 && mover.x <= 0) mover.dir = 1
 
       // Smooth camera: keep the active layer near mid-screen (a bit below center)
       const activeY = mover ? mover.y : (tower.length ? tower[tower.length-1].y : H - slabHeight*2)
@@ -228,7 +266,8 @@ export default function StackRushPage(){
     }
 
     // ---- Loop ----
-    let last = 0, rafId = 0
+    let last = 0
+    let rafId: RAFHandle = 0
     function frame(ts:number){
       if(!last) last = ts
       const dt = Math.min(.033, (ts - last)/1000)
@@ -267,7 +306,7 @@ export default function StackRushPage(){
     setSoundOn(s => {
       const next = !s
       audioRef.current.enabled = next
-      try { (audioRef.current.ac as any)?.resume?.() } catch {}
+      try { audioRef.current.ac?.resume?.() } catch {}
       return next
     })
   }
@@ -304,7 +343,7 @@ export default function StackRushPage(){
         {gameState==='menu' && (
           <Modal>
             <h2>StackRush <span style={{color:'#9fb3c8'}}>20/10</span></h2>
-            <p>One‑button tower builder with Tabata intervals: <strong>20s Work</strong>, <strong>10s Rest</strong>.</p>
+            <p>One-button tower builder with Tabata intervals: <strong>20s Work</strong>, <strong>10s Rest</strong>.</p>
             <p><strong>How to play:</strong> When the moving slab is above the stack, <kbd className="kbd">Click/Tap/Space</kbd> to drop it. Overhang is sliced off. Miss entirely and it’s over.</p>
             <div id="ad-interstitial" style={{display:'flex',alignItems:'center',justifyContent:'center',width:'100%',height:120,background:'#0f172a',color:'#a8c0ff',border:'1px dashed #334155',borderRadius:12,margin:'10px 0 16px'}}>Interstitial ad spot (menu)</div>
             <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:12}}>
@@ -338,7 +377,7 @@ export default function StackRushPage(){
 
 // UI bits
 const chipStyle: React.CSSProperties = {userSelect:'none',border:'1px solid #1e293b',background:'#0f172a99',color:'#cbd5e1',padding:'6px 10px',borderRadius:999,fontSize:12,display:'inline-flex',alignItems:'center',gap:6,backdropFilter:'blur(6px)',pointerEvents:'auto'}
-const btnStyle: React.CSSProperties = {cursor:'pointer',border:'none',borderRadius:14,padding:'10px 12px',fontWeight:700,fontSize:15,letterSpacing:.3 as any,color:'#0b1020',background:'linear-gradient(180deg,#e2f3ff,#a7e8ff)',boxShadow:'0 8px 30px #00b1ff22, inset 0 1px 0 #fff'}
+const btnStyle: React.CSSProperties = {cursor:'pointer',border:'none',borderRadius:14,padding:'10px 12px',fontWeight:700,fontSize:15,letterSpacing:0.3,color:'#0b1020',background:'linear-gradient(180deg,#e2f3ff,#a7e8ff)',boxShadow:'0 8px 30px #00b1ff22, inset 0 1px 0 #fff'}
 const btnBigStyle: React.CSSProperties = {...btnStyle, fontSize:18, padding:'14px 16px'}
 const tagStyle: React.CSSProperties = {fontSize:12,fontWeight:700,color:'#111827',background:'#ffd86b',borderRadius:999,padding:'2px 8px'}
 
