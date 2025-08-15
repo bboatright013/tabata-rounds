@@ -10,20 +10,20 @@ declare global {
 }
 
 type RAFHandle = number
-type TimeoutHandle = ReturnType<typeof setTimeout>
-type IntervalHandle = ReturnType<typeof setInterval>
+// type TimeoutHandle = ReturnType<typeof setTimeout>
+// type IntervalHandle = ReturnType<typeof setInterval>
 
-interface StackBlock {
-  x: number;
-  y: number;
-  width: number;
-  color: string;
-}
+// interface StackBlock {
+//   x: number;
+//   y: number;
+//   width: number;
+//   color: string;
+// }
 
-interface SpeedBoost {
-  amount: number;      // e.g. multiplier or px/sec
-  durationMs: number;  // how long it lasts
-}
+// interface SpeedBoost {
+//   amount: number;      // e.g. multiplier or px/sec
+//   durationMs: number;  // how long it lasts
+// }
 
 // Helper: always get a non-null 2D context
 function must2D(el: HTMLCanvasElement): CanvasRenderingContext2D {
